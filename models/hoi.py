@@ -15,7 +15,8 @@ import math
 from .backbone import build_backbone
 from .matcher import build_matcher
 from .cdn import build_cdn
-
+import math
+from math import log,log10
 
 class CDNHOI(nn.Module):
 
@@ -464,6 +465,17 @@ class PostProcessHOI(nn.Module):
                                 'obj_ids': ids[ids.shape[0] // 2:]})
 
         return results
+
+def yingshe(x):
+    if x<1e-3:
+        gx = log10(x+1e-4)+4
+        a = (math.e**0.8)/(2+2*e**0.8)
+        f = -log(1/(a*(gx-1)+0.5)-1)+0.8
+    elif x>0.4:
+        f = -log(1/(0.4*(x-0.4)+0.5)-1)+1
+    else:
+        f = 1/(2+log10(4))*(log10(x)+3)+0.8
+    return x
 
 
 def build(args):
