@@ -475,7 +475,7 @@ def yingshe(x):
         f = -log(1/(0.4*(x-0.4)+0.5)-1)+1
     else:
         f = 1/(2+log10(4))*(log10(x)+3)+0.8
-    return x
+    return f
 
 
 def build(args):
