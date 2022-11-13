@@ -156,8 +156,11 @@ def get_args_parser():
     parser.add_argument('--use_background', action='store_true')
     parser.add_argument('--only_use_mask', action='store_true')    
     parser.add_argument('--use_place365_pred_hier2', action='store_true')
+    parser.add_argument('--use_place365_pred_hier3', action='store_true')
     parser.add_argument('--amp', action='store_true')
     parser.add_argument('--wandb', action='store_true')
+    parser.add_argument('--wandb_name', type=str, default='',
+                        help='wandb_name')
     
 
     return parser
@@ -171,7 +174,7 @@ def main(args):
         assert args.masks, "Frozen training is meant for segmentation only"
     print(args)
     if args.wandb:
-      wandb.init(project="cdn_hier2_allset_bz8")
+      wandb.init(project=args.wandb_name)
     device = torch.device(args.device)
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
@@ -262,7 +265,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm, args.use_background,args.use_place365_pred_hier2, args.amp)
+            args.clip_max_norm, args.use_background,args.use_place365_pred_hier2, args.use_place365_pred_hier3, args.amp)
         if args.wandb:
           wandb.log(train_stats)
         lr_scheduler.step()

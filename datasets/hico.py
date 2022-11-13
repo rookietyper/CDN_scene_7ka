@@ -13,7 +13,7 @@ import datasets.transforms as T
 
 class HICODetection(torch.utils.data.Dataset):
 
-    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries,use_background = False, use_place365_pred_hier2 = False):
+    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries,use_background = False, use_place365_pred_hier2 = False,use_place365_pred_hier3 = False):
         self.img_set = img_set
         self.img_folder = img_folder
         with open(anno_file, 'r') as f:
@@ -76,6 +76,8 @@ class HICODetection(torch.utils.data.Dataset):
         
         if self.use_place365_pred_hier2:
             target['use_place365_pred_hier2d'] =  torch.tensor(img_anno['hier2_pred'])
+        if self.use_place365_pred_hier3:
+            target['use_place365_pred_hier3d'] =  torch.tensor(img_anno['hier3_pred'])
         
         if self.img_set == 'train':
             boxes[:, 0::2].clamp_(min=0, max=w)
@@ -212,6 +214,12 @@ def build(image_set, args):
             'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier2pred.json'),
             'val': (root / 'images' / 'test2015', root / 'annotations' / 'test_hico_hier2pred.json')
         }
+    elif args.use_place365_pred_hier3:
+        print("using all data with place365_predicted hier3")
+        PATHS = {
+            'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier3_new.json'),
+            'val': (root / 'images' / 'test2015', root / 'annotations' / 'trainval_hico_hier3_new.json')
+        }
     elif args.use_all_data and args.use_background:
         print("using all data with background")
         PATHS = {
@@ -233,7 +241,7 @@ def build(image_set, args):
 
     img_folder, anno_file = PATHS[image_set]
     dataset = HICODetection(image_set, img_folder, anno_file, transforms=make_hico_transforms(image_set),
-                            num_queries=args.num_queries, use_background = args.use_background, use_place365_pred_hier2 = args.use_place365_pred_hier2)
+                            num_queries=args.num_queries, use_background = args.use_background, use_place365_pred_hier2 = args.use_place365_pred_hier2,use_place365_pred_hier3 = args.use_place365_pred_hier3)
     if image_set == 'val':
         dataset.set_rare_hois(PATHS['train'][1])
         dataset.load_correct_mat(CORRECT_MAT_PATH)

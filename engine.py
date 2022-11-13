@@ -17,7 +17,7 @@ from torch.cuda.amp import autocast, GradScaler
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, max_norm: float = 0, use_background = False, use_place365_pred_hier2 = False, amp = False):
+                    device: torch.device, epoch: int, max_norm: float = 0, use_background = False, use_place365_pred_hier2 = False, use_place365_pred_hier3 = False, amp = False):
     model.train()
     criterion.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -49,6 +49,15 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             for i in range(len(targets)):
               background[i] = targets[i]['use_place365_pred_hier2d']
             if amp:     
+              with autocast():
+                outputs = model(samples, background)
+            else:
+              outputs = model(samples, background)
+        elif use_place365_pred_hier3:
+            background = torch.zeros((len(targets),16)).to(device)
+            for i in range(len(targets)):
+              background[i] = targets[i]['use_place365_pred_hier3d']
+            if amp:
               with autocast():
                 outputs = model(samples, background)
             else:
@@ -125,6 +134,11 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
             background = torch.zeros((len(targets),16)).to(device)
             for i in range(len(targets)):
               background[i] = targets[i]['use_place365_pred_hier2d']
+            outputs = model(samples, background)
+        elif args.use_place365_pred_hier3:# problem
+            background = torch.zeros((len(targets),365)).to(device)
+            for i in range(len(targets)):
+              background[i] = targets[i]['use_place365_pred_hier3d']
             outputs = model(samples, background)
         else:
             outputs = model(samples)
