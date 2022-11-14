@@ -408,6 +408,11 @@ class PostProcessHOI(nn.Module):
         self.subject_category_id = args.subject_category_id
         self.use_matching = args.use_matching
         self.only_use_mask = args.only_use_mask
+        self.mask_verb_scene_coour= args.mask_verb_scene_coour
+        
+        if self.mask_verb_scene_coour != '':
+            self.verb_scene_coour_matrix = torch.load(args.mask_verb_scene_coour)
+
 
     @torch.no_grad()
     def forward(self, outputs, target_sizes,background = None):
@@ -423,6 +428,14 @@ class PostProcessHOI(nn.Module):
         obj_scores, obj_labels = obj_prob[..., :-1].max(-1)
 
         verb_scores = out_verb_logits.sigmoid()
+        if self.mask_verb_scene_coour != '':
+            coour_score = torch.mm(background,self.verb_scene_coour_matrix)
+            coour_score = yingshe(coour_score)
+            print(coour_score.shape)
+            print(verb_scores.shape)
+            verb_scores = verb_scores*coour_score
+
+
         if self.only_use_mask:
             # print(verb_scores.shape)
             bs = verb_scores.shape[0]

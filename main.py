@@ -18,7 +18,7 @@ import os
 import wandb
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "5,6" 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0" 
 
 #os.environ["RANK"] = "2,3" 
 #os.environ["LOCAL_RANK"] = "2,3" 
@@ -163,6 +163,8 @@ def get_args_parser():
     parser.add_argument('--wandb', action='store_true')
     parser.add_argument('--wandb_name', type=str, default='',
                         help='wandb_name')
+    parser.add_argument('--mask_verb_scene_coour', type=str, default='',
+                        help='verb scene coourrence matrix')
     
 
     return parser
