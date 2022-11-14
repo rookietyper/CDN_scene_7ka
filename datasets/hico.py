@@ -213,7 +213,7 @@ def build(image_set, args):
     root = Path(args.hoi_path)
     assert root.exists(), f'provided HOI path {root} does not exist'
     
-    if args.use_place365_pred_hier2:
+    if args.use_place365_pred_hier2 or args.mask_verb_scene_coour:
         print("using all data with place365_predicted hier2")
         PATHS = {
             'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier2pred.json'),
