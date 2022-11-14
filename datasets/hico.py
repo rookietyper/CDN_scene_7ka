@@ -223,7 +223,7 @@ def build(image_set, args):
         print("using all data with place365_predicted hier3")
         PATHS = {
             'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier3_new.json'),
-            'val': (root / 'images' / 'test2015', root / 'annotations' / 'trainval_hico_hier3_new.json')
+            'val': (root / 'images' / 'test2015', root / 'annotations' / 'test_hico_hier3_new.json')
         }
     elif args.use_all_data and args.use_background:
         print("using all data with background")
