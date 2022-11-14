@@ -45,6 +45,7 @@ class HICODetection(torch.utils.data.Dataset):
         
         self.use_background = use_background
         self.use_place365_pred_hier2 = use_place365_pred_hier2
+        self.use_place365_pred_hier3 = use_place365_pred_hier3
 
     def __len__(self):
         return len(self.ids)
@@ -78,6 +79,10 @@ class HICODetection(torch.utils.data.Dataset):
             target['use_place365_pred_hier2d'] =  torch.tensor(img_anno['hier2_pred'])
         if self.use_place365_pred_hier3:
             target['use_place365_pred_hier3d'] =  torch.tensor(img_anno['hier3_pred'])
+            hier3 = torch.tensor(img_anno['hier3_pred'])
+            zeros = torch.zeros((512-365))
+            hier3 = torch.cat((hier3,zeros),0)
+            target['use_place365_pred_hier3d'] =  hier3
         
         if self.img_set == 'train':
             boxes[:, 0::2].clamp_(min=0, max=w)

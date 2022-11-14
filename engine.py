@@ -54,7 +54,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             else:
               outputs = model(samples, background)
         elif use_place365_pred_hier3:
-            background = torch.zeros((len(targets),16)).to(device)
+            background = torch.zeros((len(targets),512)).to(device)
             for i in range(len(targets)):
               background[i] = targets[i]['use_place365_pred_hier3d']
             if amp:
@@ -136,7 +136,7 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
               background[i] = targets[i]['use_place365_pred_hier2d']
             outputs = model(samples, background)
         elif args.use_place365_pred_hier3:# problem
-            background = torch.zeros((len(targets),365)).to(device)
+            background = torch.zeros((len(targets),512)).to(device)
             for i in range(len(targets)):
               background[i] = targets[i]['use_place365_pred_hier3d']
             outputs = model(samples, background)

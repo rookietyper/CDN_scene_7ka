@@ -12,7 +12,7 @@ class CDN(nn.Module):
                  num_dec_layers_hopd=3, num_dec_layers_interaction=3, 
                  dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, use_background = False, use_place365_pred_hier2 = False):
+                 return_intermediate_dec=False, use_background = False, use_place365_pred_hier2 = False, use_place365_pred_hier3 = False):
         super().__init__()
 
         encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
@@ -43,7 +43,9 @@ class CDN(nn.Module):
         self.use_place365_pred_hier2 = use_place365_pred_hier2
         if use_place365_pred_hier2:
             self.text_proj = nn.Linear(16, 256)
-
+        self.use_place365_pred_hier3 = use_place365_pred_hier3
+        if use_place365_pred_hier3:
+            self.text_proj = nn.Linear(512, 512)
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:
@@ -88,6 +90,18 @@ class CDN(nn.Module):
             memory = torch.cat((memory, background), dim=0)
             #print(memory.shape)
             pos_zero_embed = torch.zeros((1, bs, self.d_model)).cuda()
+            pos_embed = torch.cat((pos_embed, pos_zero_embed), dim=0)
+        if self.use_place365_pred_hier3:
+            background = self.text_proj(background.cuda()).unsqueeze(1).reshape(2,bs,-1)
+            mask_list = mask.tolist()
+            for i in range(bs):
+                mask_list[i].append(False)
+                mask_list[i].append(False)
+            mask = torch.tensor(mask_list).cuda()
+            #print(memory.shape)
+            memory = torch.cat((memory, background), dim=0)
+            #print(memory.shape)
+            pos_zero_embed = torch.zeros((2, bs, self.d_model)).cuda()
             pos_embed = torch.cat((pos_embed, pos_zero_embed), dim=0)
         interaction_decoder_out = self.interaction_decoder(interaction_tgt, memory, memory_key_padding_mask=mask,
                                   pos=pos_embed, query_pos=interaction_query_embed)
@@ -320,7 +334,8 @@ def build_cdn(args):
         normalize_before=args.pre_norm,
         return_intermediate_dec=True,
         use_background=args.use_background,
-        use_place365_pred_hier2 = args.use_place365_pred_hier2
+        use_place365_pred_hier2 = args.use_place365_pred_hier2,
+        use_place365_pred_hier3 = args.use_place365_pred_hier3
     )
 
 
