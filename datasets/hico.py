@@ -13,7 +13,7 @@ import datasets.transforms as T
 
 class HICODetection(torch.utils.data.Dataset):
 
-    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries,use_background = False, use_place365_pred_hier2 = False,use_place365_pred_hier3 = False):
+    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries,use_background = False, use_place365_pred_hier2 = False,use_place365_pred_hier3 = False, mask_verb_scene_coour = None):
         self.img_set = img_set
         self.img_folder = img_folder
         with open(anno_file, 'r') as f:
@@ -46,6 +46,7 @@ class HICODetection(torch.utils.data.Dataset):
         self.use_background = use_background
         self.use_place365_pred_hier2 = use_place365_pred_hier2
         self.use_place365_pred_hier3 = use_place365_pred_hier3
+        self.mask_verb_scene_coour = mask_verb_scene_coour
 
     def __len__(self):
         return len(self.ids)
@@ -75,7 +76,7 @@ class HICODetection(torch.utils.data.Dataset):
             target['background'] =  torch.tensor(1.0) if img_anno['background']=='shop or stall' else torch.tensor(0.0)
             target['background'] = torch.as_tensor(target['background'])
         
-        if self.use_place365_pred_hier2:
+        if self.use_place365_pred_hier2 or self.mask_verb_scene_coour:
             target['use_place365_pred_hier2d'] =  torch.tensor(img_anno['hier2_pred'])
         if self.use_place365_pred_hier3:
             target['use_place365_pred_hier3d'] =  torch.tensor(img_anno['hier3_pred'])
@@ -246,7 +247,8 @@ def build(image_set, args):
 
     img_folder, anno_file = PATHS[image_set]
     dataset = HICODetection(image_set, img_folder, anno_file, transforms=make_hico_transforms(image_set),
-                            num_queries=args.num_queries, use_background = args.use_background, use_place365_pred_hier2 = args.use_place365_pred_hier2,use_place365_pred_hier3 = args.use_place365_pred_hier3)
+                            num_queries=args.num_queries, use_background = args.use_background, use_place365_pred_hier2 = args.use_place365_pred_hier2,
+                            use_place365_pred_hier3 = args.use_place365_pred_hier3, mask_verb_scene_coour = args.mask_verb_scene_coour)
     if image_set == 'val':
         dataset.set_rare_hois(PATHS['train'][1])
         dataset.load_correct_mat(CORRECT_MAT_PATH)

@@ -145,11 +145,11 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
         if args.only_use_mask:
             results = postprocessors['hoi'](outputs, orig_target_sizes,background)
-        elif len(args.mask_verb_scene_coour)!=0 and args.use_place365_pred_hier2:
+        elif len(args.mask_verb_scene_coour)!=0 or args.use_place365_pred_hier2:
             background = torch.zeros((len(targets),16)).to(device)
             for i in range(len(targets)):
               background[i] = targets[i]['use_place365_pred_hier2d']
-            results = postprocessors['hoi'](outputs, orig_target_sizes,background)
+            results = postprocessors['hoi'](outputs, orig_target_sizes, background)
         else:
             results = postprocessors['hoi'](outputs, orig_target_sizes)
         # results = postprocessors['hoi'](outputs, orig_target_sizes)

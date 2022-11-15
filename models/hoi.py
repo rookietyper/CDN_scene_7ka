@@ -429,10 +429,22 @@ class PostProcessHOI(nn.Module):
 
         verb_scores = out_verb_logits.sigmoid()
         if self.mask_verb_scene_coour != '':
-            coour_score = torch.mm(background,self.verb_scene_coour_matrix)
-            coour_score = yingshe(coour_score)
-            print(coour_score.shape)
-            print(verb_scores.shape)
+            # print("test")
+            # print(background.shape)
+            background = F.softmax(background.cuda(), -1)
+            coour_score = torch.mm(background.cuda(),self.verb_scene_coour_matrix.cuda()) # bz*16,16*117 最终bz*117\
+            coour_score_shape = coour_score.shape
+            # print("test")
+            # print(coour_score_shape)
+            coour_score = coour_score.flatten()
+            # print(coour_score.shape)
+            coour_score_caled = []
+            for i in coour_score.tolist():
+                score = yingshe2(i)
+                coour_score_caled.append(score)
+            coour_score = torch.tensor(coour_score_caled).reshape(coour_score_shape).unsqueeze(1).repeat(1,64,1).cuda()
+            # print(coour_score.shape)
+            # print(verb_scores.shape)
             verb_scores = verb_scores*coour_score
 
 
@@ -482,14 +494,21 @@ class PostProcessHOI(nn.Module):
 def yingshe(x):
     if x<1e-3:
         gx = log10(x+1e-4)+4
-        a = (math.e**0.8)/(2+2*e**0.8)
+        a = (math.e**0.8)/(2+2*(math.e**0.8))
         f = -log(1/(a*(gx-1)+0.5)-1)+0.8
+    elif x>1:
+        f=2
     elif x>0.4:
         f = -log(1/(0.4*(x-0.4)+0.5)-1)+1
     else:
         f = 1/(2+log10(4))*(log10(x)+3)+0.8
     return f
-
+def yingshe2(x):
+    if x<5e-2:
+        # print(x)
+        return 0
+    else:
+        return 1
 
 def build(args):
     device = torch.device(args.device)
