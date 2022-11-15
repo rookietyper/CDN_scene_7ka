@@ -17,7 +17,7 @@ from torch.cuda.amp import autocast, GradScaler
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, max_norm: float = 0, use_background = False, use_place365_pred_hier2 = False, use_place365_pred_hier3 = False, amp = False):
+                    device: torch.device, epoch: int, max_norm: float = 0,  use_place365_pred_hier2 = False, use_place365_pred_hier3 = False, amp = False):
     model.train()
     criterion.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -33,18 +33,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items() if k != 'filename'} for t in targets]
-        
-        if use_background:
-            
-            background = torch.zeros(len(targets)).to(device)
-            for i in range(len(targets)):
-              background[i] = targets[i]['background']       
-            if amp:     
-              with autocast():
-                outputs = model(samples, background)
-            else: 
-              outputs = model(samples, background)
-        elif use_place365_pred_hier2:
+        if use_place365_pred_hier2:
             background = torch.zeros((len(targets),16)).to(device)
             for i in range(len(targets)):
               background[i] = targets[i]['use_place365_pred_hier2d']
@@ -127,10 +116,7 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
     indices = []
     for samples, targets in metric_logger.log_every(data_loader, 10, header):
         samples = samples.to(device)
-        if args.use_background:
-            background = torch.tensor([i['background'].to(device) for i in targets])
-            outputs = model(samples, background.to(device))
-        elif args.use_place365_pred_hier2:
+        if args.use_place365_pred_hier2:
             background = torch.zeros((len(targets),16)).to(device)
             for i in range(len(targets)):
               background[i] = targets[i]['use_place365_pred_hier2d']

@@ -12,7 +12,7 @@ class CDN(nn.Module):
                  num_dec_layers_hopd=3, num_dec_layers_interaction=3, 
                  dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, use_background = False, use_place365_pred_hier2 = False, use_place365_pred_hier3 = False):
+                 return_intermediate_dec=False, use_place365_pred_hier2 = False, use_place365_pred_hier3 = False, use_hier_beforeHOPD = False): 
         super().__init__()
 
         encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
@@ -37,19 +37,39 @@ class CDN(nn.Module):
 
         self.d_model = d_model
         self.nhead = nhead
-        self.use_background = use_background
-        if use_background:
-            self.text_proj = nn.Linear(1, 256)
+        self.use_hier_beforeHOPD = use_hier_beforeHOPD 
         self.use_place365_pred_hier2 = use_place365_pred_hier2
         if use_place365_pred_hier2:
             self.text_proj = nn.Linear(16, 256)
         self.use_place365_pred_hier3 = use_place365_pred_hier3
         if use_place365_pred_hier3:
             self.text_proj = nn.Linear(512, 512)
+        self.use_background = (self.use_place365_pred_hier2 or self.use_place365_pred_hier3)
+        
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
+    
+    def process_encoded_feature(memory, mask, background, pos_embed):
+        if self.use_place365_pred_hier2:
+            background = self.text_proj(background.cuda()).unsqueeze(0)
+        elif self.use_place365_pred_hier3:
+            background = self.text_proj(background.cuda()).unsqueeze(1).reshape(2,bs,-1)
+        mask_list = mask.tolist()
+        print("using encoded feature")
+        for i in range(bs):
+            mask_list[i].append(False)
+            mask_list[i].append(False)
+        mask = torch.tensor(mask_list).cuda()
+        #print(memory.shape)
+        memory = torch.cat((memory, background), dim=0)
+        #print(memory.shape)
+        pos_zero_embed = torch.zeros((2, bs, self.d_model)).cuda()
+        pos_embed = torch.cat((pos_embed, pos_zero_embed), dim=0)
+        
+        return memory, mask, pos_embed
+
 
     def forward(self, src, mask, query_embed, pos_embed, background = None):
         bs, c, h, w = src.shape
@@ -59,50 +79,22 @@ class CDN(nn.Module):
         mask = mask.flatten(1)
 
         tgt = torch.zeros_like(query_embed)
+
         memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
+        if self.use_background and self.use_hier_beforeHOPD:
+            print("use_hier_beforeHOPD")
+            memory,mask,pos_embed =  self.process_encoded_feature(memory,mask,background,pos_embed)
         hopd_out = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                           pos=pos_embed, query_pos=query_embed)
         hopd_out = hopd_out.transpose(1, 2)
+        if self.use_background:
+            memory,mask,pos_embed =  self.process_encoded_feature(memory,mask,background,pos_embed)
 
 
         interaction_query_embed = hopd_out[-1]
         interaction_query_embed = interaction_query_embed.permute(1, 0, 2)
 
         interaction_tgt = torch.zeros_like(interaction_query_embed)
-        if self.use_background:
-            #print("use background")
-            background = torch.tensor(background).unsqueeze(1)
-            background = self.text_proj(background.cuda()).unsqueeze(0)
-            mask_list = mask.tolist()
-            for i in range(bs):
-                mask_list[i].append(False)
-            mask = torch.tensor(mask_list).cuda()
-            memory = torch.cat((memory, background), dim=0)
-            pos_zero_embed = torch.zeros((1, bs, self.d_model)).cuda()
-            pos_embed = torch.cat((pos_embed, pos_zero_embed), dim=0)
-        if self.use_place365_pred_hier2:
-            background = self.text_proj(background.cuda()).unsqueeze(0)
-            mask_list = mask.tolist()
-            for i in range(bs):
-                mask_list[i].append(False)
-            mask = torch.tensor(mask_list).cuda()
-            #print(memory.shape)
-            memory = torch.cat((memory, background), dim=0)
-            #print(memory.shape)
-            pos_zero_embed = torch.zeros((1, bs, self.d_model)).cuda()
-            pos_embed = torch.cat((pos_embed, pos_zero_embed), dim=0)
-        if self.use_place365_pred_hier3:
-            background = self.text_proj(background.cuda()).unsqueeze(1).reshape(2,bs,-1)
-            mask_list = mask.tolist()
-            for i in range(bs):
-                mask_list[i].append(False)
-                mask_list[i].append(False)
-            mask = torch.tensor(mask_list).cuda()
-            #print(memory.shape)
-            memory = torch.cat((memory, background), dim=0)
-            #print(memory.shape)
-            pos_zero_embed = torch.zeros((2, bs, self.d_model)).cuda()
-            pos_embed = torch.cat((pos_embed, pos_zero_embed), dim=0)
         interaction_decoder_out = self.interaction_decoder(interaction_tgt, memory, memory_key_padding_mask=mask,
                                   pos=pos_embed, query_pos=interaction_query_embed)
         interaction_decoder_out = interaction_decoder_out.transpose(1, 2)
@@ -333,9 +325,10 @@ def build_cdn(args):
         num_dec_layers_interaction=args.dec_layers_interaction,
         normalize_before=args.pre_norm,
         return_intermediate_dec=True,
-        use_background=args.use_background,
         use_place365_pred_hier2 = args.use_place365_pred_hier2,
-        use_place365_pred_hier3 = args.use_place365_pred_hier3
+        use_place365_pred_hier3 = args.use_place365_pred_hier3,
+        use_hier_beforeHOPD = args.use_hier_beforeHOPD
+
     )
 
 

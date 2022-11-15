@@ -154,8 +154,7 @@ def get_args_parser():
     parser.add_argument('--nms_beta', default=0.5, type=float)
     parser.add_argument('--json_file', default='results.json', type=str)
     
-    parser.add_argument('--use_all_data', action = 'store_true')
-    parser.add_argument('--use_background', action='store_true')
+    parser.add_argument('--use_all_data', action = 'store_true') # useless
     parser.add_argument('--only_use_mask', action='store_true')    
     parser.add_argument('--use_place365_pred_hier2', action='store_true')
     parser.add_argument('--use_place365_pred_hier3', action='store_true')
@@ -269,7 +268,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm, args.use_background,args.use_place365_pred_hier2, args.use_place365_pred_hier3, args.amp)
+            args.clip_max_norm, args.use_place365_pred_hier2, args.use_place365_pred_hier3, args.amp)
         if args.wandb:
           wandb.log(train_stats)
         lr_scheduler.step()
