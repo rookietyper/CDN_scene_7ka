@@ -51,21 +51,25 @@ class CDN(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
     
-    def process_encoded_feature(memory, mask, background, pos_embed):
+    def process_encoded_feature(self, memory, mask, background, pos_embed, bs):
+        mask_list = mask.tolist()
         if self.use_place365_pred_hier2:
             background = self.text_proj(background.cuda()).unsqueeze(0)
+            pos_zero_embed = torch.zeros((1, bs, self.d_model)).cuda()
+            for i in range(bs):
+              mask_list[i].append(False)
         elif self.use_place365_pred_hier3:
             background = self.text_proj(background.cuda()).unsqueeze(1).reshape(2,bs,-1)
-        mask_list = mask.tolist()
-        print("using encoded feature")
-        for i in range(bs):
-            mask_list[i].append(False)
-            mask_list[i].append(False)
+            pos_zero_embed = torch.zeros((2, bs, self.d_model)).cuda()
+            for i in range(bs):
+              mask_list[i].append(False)
+              mask_list[i].append(False)
+        
         mask = torch.tensor(mask_list).cuda()
         #print(memory.shape)
         memory = torch.cat((memory, background), dim=0)
         #print(memory.shape)
-        pos_zero_embed = torch.zeros((2, bs, self.d_model)).cuda()
+        
         pos_embed = torch.cat((pos_embed, pos_zero_embed), dim=0)
         
         return memory, mask, pos_embed
@@ -82,13 +86,13 @@ class CDN(nn.Module):
 
         memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
         if self.use_background and self.use_hier_beforeHOPD:
-            print("use_hier_beforeHOPD")
-            memory,mask,pos_embed =  self.process_encoded_feature(memory,mask,background,pos_embed)
+            #print(len((memory,mask,background,pos_embed)))
+            memory,mask,pos_embed =  self.process_encoded_feature(memory,mask, background, pos_embed, bs)
         hopd_out = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                           pos=pos_embed, query_pos=query_embed)
         hopd_out = hopd_out.transpose(1, 2)
-        if self.use_background:
-            memory,mask,pos_embed =  self.process_encoded_feature(memory,mask,background,pos_embed)
+        if self.use_background and not self.use_hier_beforeHOPD:
+            memory,mask,pos_embed =  self.process_encoded_feature(memory,mask,background,pos_embed,bs)
 
 
         interaction_query_embed = hopd_out[-1]

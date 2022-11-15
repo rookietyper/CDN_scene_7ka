@@ -18,7 +18,7 @@ import os
 import wandb
 
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,4,5"
 
 #os.environ["RANK"] = "2,3" 
 #os.environ["LOCAL_RANK"] = "2,3" 
@@ -155,6 +155,7 @@ def get_args_parser():
     parser.add_argument('--json_file', default='results.json', type=str)
     
     parser.add_argument('--use_all_data', action = 'store_true') # useless
+    parser.add_argument('--use_background', action = 'store_true')
     parser.add_argument('--only_use_mask', action='store_true')    
     parser.add_argument('--use_place365_pred_hier2', action='store_true')
     parser.add_argument('--use_place365_pred_hier3', action='store_true')
@@ -164,7 +165,7 @@ def get_args_parser():
                         help='wandb_name')
     parser.add_argument('--mask_verb_scene_coour', type=str, default='',
                         help='verb scene coourrence matrix')
-    
+    parser.add_argument('--use_hier_beforeHOPD', action='store_true')
 
     return parser
 
