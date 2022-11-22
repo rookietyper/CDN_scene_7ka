@@ -13,7 +13,7 @@ import datasets.transforms as T
 
 class HICODetection(torch.utils.data.Dataset):
 
-    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries, args =args):
+    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries, args=None):
         self.img_set = img_set
         self.img_folder = img_folder
         with open(anno_file, 'r') as f:

@@ -113,7 +113,6 @@ class CDN(nn.Module):
                 panoptic_info = background[1]
             background = background[0]
         if self.use_panoptic_info and self.use_panoptic_info_beforeHOPD:
-            print("panoptic before HOPD")
             memory,mask,pos_embed =  self.process_encoded_panoptic_feature(memory,mask, panoptic_info, pos_embed, bs)
         if self.use_background and self.use_hier_beforeHOPD:
             #print(len((memory,mask,background,pos_embed)))
