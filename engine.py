@@ -51,8 +51,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                 panoptic_num_info = torch.zeros((len(targets),133)).to(device)
                 for i in range(len(targets)):
                     panoptic_num_info[i] = targets[i]['panoptic_class_num_info']
-            else:
                 background = [background,panoptic_info,panoptic_num_info]
+            else:
+                background = [background,panoptic_info]
         if args.amp:     
           with autocast():
             outputs = model(samples, background)

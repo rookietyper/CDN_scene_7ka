@@ -167,6 +167,9 @@ def get_args_parser():
                         help='verb scene coourrence matrix')
     parser.add_argument('--use_hier_beforeHOPD', action='store_true')
 
+    parser.add_argument('--use_coco_panoptic_info', action='store_true')
+    parser.add_argument('--use_coco_panoptic_num_info', action='store_true')
+    parser.add_argument('--use_panoptic_info_beforeHOPD', action='store_true')
     return parser
 
 
@@ -269,7 +272,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm, args.use_place365_pred_hier2, args.use_place365_pred_hier3, args.amp)
+            args.clip_max_norm, args)
         if args.wandb:
           wandb.log(train_stats)
         lr_scheduler.step()
