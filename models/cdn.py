@@ -12,7 +12,7 @@ class CDN(nn.Module):
                  num_dec_layers_hopd=3, num_dec_layers_interaction=3, 
                  dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, use_place365_pred_hier2 = False, use_place365_pred_hier3 = False, use_hier_beforeHOPD = False): 
+                 return_intermediate_dec=False, args = None): 
         super().__init__()
 
         encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
@@ -37,21 +37,26 @@ class CDN(nn.Module):
 
         self.d_model = d_model
         self.nhead = nhead
-        self.use_hier_beforeHOPD = use_hier_beforeHOPD 
-        self.use_place365_pred_hier2 = use_place365_pred_hier2
-        if use_place365_pred_hier2:
+        self.use_hier_beforeHOPD = args.use_hier_beforeHOPD 
+        self.use_place365_pred_hier2 = args.use_place365_pred_hier2
+        if self.use_place365_pred_hier2:
             self.text_proj = nn.Linear(16, 256)
-        self.use_place365_pred_hier3 = use_place365_pred_hier3
-        if use_place365_pred_hier3:
+        self.use_place365_pred_hier3 = args.use_place365_pred_hier3
+        if self.use_place365_pred_hier3:
             self.text_proj = nn.Linear(512, 512)
         self.use_background = (self.use_place365_pred_hier2 or self.use_place365_pred_hier3)
+        self.use_panoptic_info = args.use_coco_panoptic_info
+        self.use_panoptic_num_info = args.use_coco_panoptic_num_info
+        self.use_panoptic_info_beforeHOPD = args.use_panoptic_info_beforeHOPD
+        if self.use_panoptic_info:
+            self.panoptic_proj = nn.Linear(133, 256)
         
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
     
-    def process_encoded_feature(self, memory, mask, background, pos_embed, bs):
+    def process_encoded_feature(self, memory, mask, background, pos_embed, bs): #用于引入背景信息
         mask_list = mask.tolist()
         if self.use_place365_pred_hier2:
             background = self.text_proj(background.cuda()).unsqueeze(0)
@@ -74,6 +79,22 @@ class CDN(nn.Module):
         
         return memory, mask, pos_embed
 
+    def process_encoded_panoptic_feature(self, memory, mask, panoptic, pos_embed, bs): #用于引入背景信息
+        mask_list = mask.tolist()
+        panoptic = self.panoptic_proj(panoptic.cuda()).unsqueeze(0)
+        pos_zero_embed = torch.zeros((1, bs, self.d_model)).cuda()
+        for i in range(bs):
+            mask_list[i].append(False)
+        
+        mask = torch.tensor(mask_list).cuda()
+        #print(memory.shape)
+        memory = torch.cat((memory, panoptic), dim=0)
+        #print(memory.shape)
+        
+        pos_embed = torch.cat((pos_embed, pos_zero_embed), dim=0)
+        
+        return memory, mask, pos_embed
+
 
     def forward(self, src, mask, query_embed, pos_embed, background = None):
         bs, c, h, w = src.shape
@@ -85,6 +106,15 @@ class CDN(nn.Module):
         tgt = torch.zeros_like(query_embed)
 
         memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
+        if self.use_panoptic_info:
+            if self.use_panoptic_num_info:
+                panoptic_info = background[2]
+            else:
+                panoptic_info = background[1]
+            background = background[0]
+        if self.use_panoptic_info and self.use_panoptic_info_beforeHOPD:
+            print("panoptic before HOPD")
+            memory,mask,pos_embed =  self.process_encoded_panoptic_feature(memory,mask, panoptic_info, pos_embed, bs)
         if self.use_background and self.use_hier_beforeHOPD:
             #print(len((memory,mask,background,pos_embed)))
             memory,mask,pos_embed =  self.process_encoded_feature(memory,mask, background, pos_embed, bs)
@@ -93,7 +123,10 @@ class CDN(nn.Module):
         hopd_out = hopd_out.transpose(1, 2)
         if self.use_background and not self.use_hier_beforeHOPD:
             memory,mask,pos_embed =  self.process_encoded_feature(memory,mask,background,pos_embed,bs)
-
+        if self.use_panoptic_info and not self.use_panoptic_info_beforeHOPD:
+            print("panoptic after HOPD")
+            memory,mask,pos_embed =  self.process_encoded_panoptic_feature(memory,mask, panoptic_info, pos_embed, bs)
+        
 
         interaction_query_embed = hopd_out[-1]
         interaction_query_embed = interaction_query_embed.permute(1, 0, 2)
@@ -329,9 +362,7 @@ def build_cdn(args):
         num_dec_layers_interaction=args.dec_layers_interaction,
         normalize_before=args.pre_norm,
         return_intermediate_dec=True,
-        use_place365_pred_hier2 = args.use_place365_pred_hier2,
-        use_place365_pred_hier3 = args.use_place365_pred_hier3,
-        use_hier_beforeHOPD = args.use_hier_beforeHOPD
+        args = args
 
     )
 

@@ -17,7 +17,7 @@ from torch.cuda.amp import autocast, GradScaler
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, max_norm: float = 0,  use_place365_pred_hier2 = False, use_place365_pred_hier3 = False, amp = False):
+                    device: torch.device, epoch: int, max_norm: float = 0, args = None):
     model.train()
     criterion.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -28,35 +28,36 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.add_meter('obj_class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 10
-    if amp:
+    if args.amp:
       scalar = GradScaler()
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items() if k != 'filename'} for t in targets]
-        if use_place365_pred_hier2:
+        if args.use_place365_pred_hier2:
             background = torch.zeros((len(targets),16)).to(device)
             for i in range(len(targets)):
-              background[i] = targets[i]['use_place365_pred_hier2d']
-            if amp:     
-              with autocast():
-                outputs = model(samples, background)
-            else:
-              outputs = model(samples, background)
-        elif use_place365_pred_hier3:
+                background[i] = targets[i]['use_place365_pred_hier2d']
+        elif args.use_place365_pred_hier3:
             background = torch.zeros((len(targets),512)).to(device)
             for i in range(len(targets)):
-              background[i] = targets[i]['use_place365_pred_hier3d']
-            if amp:
-              with autocast():
-                outputs = model(samples, background)
-            else:
-              outputs = model(samples, background)
+                background[i] = targets[i]['use_place365_pred_hier3d']
         else:
-          if amp:     
-            with autocast():
-              outputs = model(samples)
-          else:
-            outputs = model(samples)
+            background = None
+        if args.use_coco_panoptic_info:
+            panoptic_info =  torch.zeros((len(targets),133)).to(device)
+            for i in range(len(targets)):
+                panoptic_info[i] = targets[i]['panoptic_class_info']
+            if args.use_coco_panoptic_num_info:
+                panoptic_num_info = torch.zeros((len(targets),133)).to(device)
+                for i in range(len(targets)):
+                    panoptic_num_info[i] = targets[i]['panoptic_class_num_info']
+            else:
+                background = [background,panoptic_info,panoptic_num_info]
+        if args.amp:     
+          with autocast():
+            outputs = model(samples, background)
+        else:
+          outputs = model(samples, background)
         #print(targets)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
@@ -78,14 +79,14 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             sys.exit(1)
 
         optimizer.zero_grad()
-        if amp:
-          #print("use amp")conda deactivate
-          scalar.scale(losses).backward()
-          scalar.step(optimizer)
-          scalar.update()
+        if args.amp:
+            #print("use amp")conda deactivate
+            scalar.scale(losses).backward()
+            scalar.step(optimizer)
+            scalar.update()
         else:
-          losses.backward()
-          optimizer.step()
+            losses.backward()
+            optimizer.step()
         if max_norm > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
         
@@ -120,14 +121,23 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
             background = torch.zeros((len(targets),16)).to(device)
             for i in range(len(targets)):
               background[i] = targets[i]['use_place365_pred_hier2d']
-            outputs = model(samples, background)
         elif args.use_place365_pred_hier3:# problem
             background = torch.zeros((len(targets),512)).to(device)
             for i in range(len(targets)):
               background[i] = targets[i]['use_place365_pred_hier3d']
-            outputs = model(samples, background)
         else:
-            outputs = model(samples)
+            background = None
+        if args.use_coco_panoptic_info:
+            panoptic_info =  torch.zeros((len(targets),133)).to(device)
+            for i in range(len(targets)):
+              panoptic_info[i] = targets[i]['panoptic_class_info']
+            if args.use_coco_panoptic_num_info:
+              panoptic_num_info = torch.zeros((len(targets),133)).to(device)
+              for i in range(len(targets)):
+                panoptic_num_info[i] = targets[i]['panoptic_class_num_info']
+            else:
+              background = [background,panoptic_info,panoptic_num_info]
+        outputs = model(samples, background)
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
         if args.only_use_mask:
             results = postprocessors['hoi'](outputs, orig_target_sizes,background)

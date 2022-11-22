@@ -13,7 +13,7 @@ import datasets.transforms as T
 
 class HICODetection(torch.utils.data.Dataset):
 
-    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries,use_background = False, use_place365_pred_hier2 = False,use_place365_pred_hier3 = False, mask_verb_scene_coour = None):
+    def __init__(self, img_set, img_folder, anno_file, transforms, num_queries, args =args):
         self.img_set = img_set
         self.img_folder = img_folder
         with open(anno_file, 'r') as f:
@@ -43,10 +43,13 @@ class HICODetection(torch.utils.data.Dataset):
         else:
             self.ids = list(range(len(self.annotations)))
         
-        self.use_background = use_background
-        self.use_place365_pred_hier2 = use_place365_pred_hier2
-        self.use_place365_pred_hier3 = use_place365_pred_hier3
-        self.mask_verb_scene_coour = mask_verb_scene_coour
+        self.use_background = args.use_background
+        self.use_place365_pred_hier2 = args.use_place365_pred_hier2
+        self.use_place365_pred_hier3 = args.use_place365_pred_hier3
+        self.mask_verb_scene_coour = args.mask_verb_scene_coour
+        self.use_coco_panoptic_info = args.use_coco_panoptic_info
+        if self.use_coco_panoptic_info:
+            self.use_num_aswell = args.use_coco_panoptic_num_info
 
     def __len__(self):
         return len(self.ids)
@@ -72,12 +75,19 @@ class HICODetection(torch.utils.data.Dataset):
         target = {}
         target['orig_size'] = torch.as_tensor([int(h), int(w)])
         target['size'] = torch.as_tensor([int(h), int(w)])
+        if self.use_place365_pred_hier2 :
+            target['use_place365_pred_hier2d'] =  torch.tensor(img_anno['hier2_pred'])
+        if self.use_coco_panoptic_info:
+            target['panoptic_class_info'] = torch.tensor(img_anno['panoptic_info'][0])
+            if self.use_num_aswell:
+                target['panoptic_class_num_info'] = torch.tensor(img_anno['panoptic_info'][1])
+        elif self.use_place365_pred_hier2 or self.mask_verb_scene_coour:
+            target['use_place365_pred_hier2d'] =  torch.tensor(img_anno['hier2_pred'])
+        
         if self.use_background:
             target['background'] =  torch.tensor(1.0) if img_anno['background']=='shop or stall' else torch.tensor(0.0)
-            target['background'] = torch.as_tensor(target['background'])
+            target['background'] = torch.as_tensor(target['background'])        
         
-        if self.use_place365_pred_hier2 or self.mask_verb_scene_coour:
-            target['use_place365_pred_hier2d'] =  torch.tensor(img_anno['hier2_pred'])
         if self.use_place365_pred_hier3:
             target['use_place365_pred_hier3d'] =  torch.tensor(img_anno['hier3_pred'])
             hier3 = torch.tensor(img_anno['hier3_pred'])
@@ -213,8 +223,15 @@ def make_hico_transforms(image_set):
 def build(image_set, args):
     root = Path(args.hoi_path)
     assert root.exists(), f'provided HOI path {root} does not exist'
+
+    if args.use_place365_pred_hier2 and args.use_coco_panoptic_info:
+        print("using all data with hier2 and panoptic information")
+        PATHS = {
+            'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier2pred_panoptic.json'),
+            'val': (root / 'images' / 'test2015', root / 'annotations' / 'test_hico_hier2pred_panoptic.json')
+        }
     
-    if args.use_place365_pred_hier2 or args.mask_verb_scene_coour:
+    elif args.use_place365_pred_hier2 or args.mask_verb_scene_coour:
         print("using all data with place365_predicted hier2")
         PATHS = {
             'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier2pred.json'),
@@ -246,9 +263,7 @@ def build(image_set, args):
     CORRECT_MAT_PATH = root / 'annotations' / 'corre_hico.npy'
 
     img_folder, anno_file = PATHS[image_set]
-    dataset = HICODetection(image_set, img_folder, anno_file, transforms=make_hico_transforms(image_set),
-                            num_queries=args.num_queries, use_background = args.use_background, use_place365_pred_hier2 = args.use_place365_pred_hier2,
-                            use_place365_pred_hier3 = args.use_place365_pred_hier3, mask_verb_scene_coour = args.mask_verb_scene_coour)
+    dataset = HICODetection(image_set, img_folder, anno_file, transforms=make_hico_transforms(image_set),num_queries=args.num_queries,args = args)
     if image_set == 'val':
         dataset.set_rare_hois(PATHS['train'][1])
         dataset.load_correct_mat(CORRECT_MAT_PATH)
