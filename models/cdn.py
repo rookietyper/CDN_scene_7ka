@@ -44,6 +44,9 @@ class CDN(nn.Module):
         self.use_place365_pred_hier3 = args.use_place365_pred_hier3
         if self.use_place365_pred_hier3:
             self.text_proj = nn.Linear(512, 512)
+        self.use_place365_pred_hier2reclass = args.use_place365_pred_hier2reclass
+        if self.use_place365_pred_hier2reclass:
+            self.text_proj = nn.Linear(33, 256)
         self.use_background = (self.use_place365_pred_hier2 or self.use_place365_pred_hier3)
         self.use_panoptic_info = args.use_coco_panoptic_info
         self.use_panoptic_num_info = args.use_coco_panoptic_num_info
@@ -59,6 +62,11 @@ class CDN(nn.Module):
     def process_encoded_feature(self, memory, mask, background, pos_embed, bs): #用于引入背景信息
         mask_list = mask.tolist()
         if self.use_place365_pred_hier2:
+            background = self.text_proj(background.cuda()).unsqueeze(0)
+            pos_zero_embed = torch.zeros((1, bs, self.d_model)).cuda()
+            for i in range(bs):
+              mask_list[i].append(False)
+        elif self.use_place365_pred_hier2reclass:
             background = self.text_proj(background.cuda()).unsqueeze(0)
             pos_zero_embed = torch.zeros((1, bs, self.d_model)).cuda()
             for i in range(bs):

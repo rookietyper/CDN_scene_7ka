@@ -158,6 +158,7 @@ def get_args_parser():
     parser.add_argument('--use_background', action = 'store_true')
     parser.add_argument('--only_use_mask', action='store_true')    
     parser.add_argument('--use_place365_pred_hier2', action='store_true')
+    parser.add_argument('--use_place365_pred_hier2reclass', action='store_true')
     parser.add_argument('--use_place365_pred_hier3', action='store_true')
     parser.add_argument('--amp', action='store_true')
     parser.add_argument('--wandb', action='store_true')

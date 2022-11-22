@@ -48,6 +48,7 @@ class HICODetection(torch.utils.data.Dataset):
         self.use_place365_pred_hier3 = args.use_place365_pred_hier3
         self.mask_verb_scene_coour = args.mask_verb_scene_coour
         self.use_coco_panoptic_info = args.use_coco_panoptic_info
+        self.use_place365_pred_hier2reclass = args.use_place365_pred_hier2reclass
         if self.use_coco_panoptic_info:
             self.use_num_aswell = args.use_coco_panoptic_num_info
 
@@ -77,6 +78,8 @@ class HICODetection(torch.utils.data.Dataset):
         target['size'] = torch.as_tensor([int(h), int(w)])
         if self.use_place365_pred_hier2 :
             target['use_place365_pred_hier2d'] =  torch.tensor(img_anno['hier2_pred'])
+        if self.use_place365_pred_hier2reclass :
+            target['use_place365_pred_hier2_reclass'] =  torch.tensor(img_anno['use_place365_pred_hier2reclass'])
         if self.use_coco_panoptic_info:
             target['panoptic_class_info'] = torch.tensor(img_anno['panoptic_info'][0])
             if self.use_num_aswell:
@@ -236,6 +239,12 @@ def build(image_set, args):
         PATHS = {
             'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier2pred.json'),
             'val': (root / 'images' / 'test2015', root / 'annotations' / 'test_hico_hier2pred.json')
+        }
+    elif args.use_place365_pred_hier2reclass:
+        print("using all data with hier2 reclassed data")
+        PATHS = {
+            'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier2reclass_pred.json'),
+            'val': (root / 'images' / 'test2015', root / 'annotations' / 'test_hico_hier2reclass_pred.json')
         }
     elif args.use_place365_pred_hier3:
         print("using all data with place365_predicted hier3")
