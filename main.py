@@ -12,7 +12,8 @@ from torch.utils.data import DataLoader, DistributedSampler
 import datasets
 import util.misc as utils
 from datasets import build_dataset
-from engine import train_one_epoch, evaluate_hoi
+# from engine import train_one_epoch, evaluate_hoi
+from engine_noamp import train_one_epoch, evaluate_hoi
 from models import build_model
 import os
 import wandb
@@ -171,6 +172,7 @@ def get_args_parser():
     parser.add_argument('--use_coco_panoptic_info', action='store_true')
     parser.add_argument('--use_coco_panoptic_num_info', action='store_true')
     parser.add_argument('--use_panoptic_info_beforeHOPD', action='store_true')
+    parser.add_argument('--loss_scene_reweight', action='store_true')
     return parser
 
 

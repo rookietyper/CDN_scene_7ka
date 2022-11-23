@@ -117,6 +117,10 @@ class SetCriterionHOI(nn.Module):
         self.register_buffer('empty_weight', empty_weight)
 
         self.alpha = args.alpha
+        # self.change_loss_withhier2 = args.change_loss_withhier2
+
+        self.loss_scene_reweight = args.loss_scene_reweight
+        
 
         if args.dataset_file == 'hico':
             self.obj_nums_init = [1811, 9462, 2415, 7249, 1665, 3587, 1396, 1086, 10369, 800, \
@@ -166,6 +170,9 @@ class SetCriterionHOI(nn.Module):
         self.obj_reweight = args.obj_reweight
         self.verb_reweight = args.verb_reweight
         self.use_static_weights = args.use_static_weights
+        self.use_place365_pred_hier2 = args.use_place365_pred_hier2
+        if self.loss_scene_reweight:
+            self.scene_inter_matrix = torch.load('./intersceneprior.pth')
         
         Maxsize = args.queue_size
 
@@ -245,11 +252,25 @@ class SetCriterionHOI(nn.Module):
 
     def loss_verb_labels(self, outputs, targets, indices, num_interactions):
         assert 'pred_verb_logits' in outputs
-        src_logits = outputs['pred_verb_logits']
-
+        src_logits = outputs['pred_verb_logits'] # bs,64,117
+        
         idx = self._get_src_permutation_idx(indices)
         target_classes_o = torch.cat([t['verb_labels'][J] for t, (_, J) in zip(targets, indices)])
+        
+        
+        if self.use_place365_pred_hier2 and self.loss_scene_reweight:
+            # background = torch.cat([target['use_place365_pred_hier2d'].unsqueeze(0).repeat(len(l[0]),1) for target,l in zip(targets, indices) ],dim=0)#target['use_place365_pred_hier2d']
+            background = torch.cat([target['use_place365_pred_hier2d'].unsqueeze(0) for target in targets],dim=0)#target['use_place365_pred_hier2d']
+            background_indx = background.argmax(dim=1)
+            background = torch.zeros(background.shape)
+            for bs,bid in enumerate(background_indx):
+                background[bs][bid] = 1 # bs*16
+        else:
+            background = None
+
+        
         target_classes = torch.zeros_like(src_logits)
+        
         if self.amp:
             target_classes[idx] = target_classes_o.half()
         else:
@@ -278,7 +299,7 @@ class SetCriterionHOI(nn.Module):
             verb_weights = aphal * self.verb_weights_init + (1 - aphal) * verb_weights
 
         src_logits = src_logits.sigmoid()
-        loss_verb_ce = self._neg_loss(src_logits, target_classes, weights=verb_weights, alpha=self.alpha)
+        loss_verb_ce = self._neg_loss(src_logits, target_classes, weights=verb_weights, alpha=self.alpha,background=background)
 
         losses = {'loss_verb_ce': loss_verb_ce}
         return losses
@@ -315,7 +336,7 @@ class SetCriterionHOI(nn.Module):
     def loss_matching_labels(self, outputs, targets, indices, num_interactions, log=True):
         assert 'pred_matching_logits' in outputs
         src_logits = outputs['pred_matching_logits']
-
+        
         idx = self._get_src_permutation_idx(indices)
         target_classes_o = torch.cat([t['matching_labels'][J] for t, (_, J) in zip(targets, indices)])
         target_classes = torch.full(src_logits.shape[:2], 0,
@@ -329,13 +350,16 @@ class SetCriterionHOI(nn.Module):
             losses['matching_error'] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
         return losses
 
-    def _neg_loss(self, pred, gt, weights=None, alpha=0.25):
-        pos_inds = gt.eq(1).float()
+    def _neg_loss(self, pred, gt, weights=None, alpha=0.25,background=None):
+        pos_inds = gt.eq(1).float() # 2*64*117
         neg_inds = gt.lt(1).float()
-
+            
         loss = 0
 
         pos_loss = alpha * torch.log(pred) * torch.pow(1 - pred, 2) * pos_inds
+        if self.loss_scene_reweight:
+            scene_weight = background.mm(self.scene_inter_matrix).unsqueeze(1).repeat(1,64,1)+torch.ones(pos_inds.shape)
+            pos_loss=pos_loss*scene_weight.cuda()
         if weights is not None:
             pos_loss = pos_loss * weights[:-1]
 
