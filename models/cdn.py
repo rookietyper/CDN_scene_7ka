@@ -47,7 +47,7 @@ class CDN(nn.Module):
         self.use_place365_pred_hier2reclass = args.use_place365_pred_hier2reclass
         if self.use_place365_pred_hier2reclass:
             self.text_proj = nn.Linear(33, 256)
-        self.use_background = (self.use_place365_pred_hier2 or self.use_place365_pred_hier3)
+        self.use_background = (self.use_place365_pred_hier2 or self.use_place365_pred_hier3 or self.use_place365_pred_hier2reclass)
         self.use_panoptic_info = args.use_coco_panoptic_info
         self.use_panoptic_num_info = args.use_coco_panoptic_num_info
         self.use_panoptic_info_beforeHOPD = args.use_panoptic_info_beforeHOPD

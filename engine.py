@@ -144,8 +144,9 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
               panoptic_num_info = torch.zeros((len(targets),133)).to(device)
               for i in range(len(targets)):
                 panoptic_num_info[i] = targets[i]['panoptic_class_num_info']
-            else:
               background = [background,panoptic_info,panoptic_num_info]
+            else:
+              background = [background,panoptic_info]
         outputs = model(samples, background)
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
         if args.only_use_mask:
