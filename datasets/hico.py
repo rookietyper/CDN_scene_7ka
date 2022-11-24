@@ -227,7 +227,7 @@ def build(image_set, args):
     root = Path(args.hoi_path)
     assert root.exists(), f'provided HOI path {root} does not exist'
 
-    if args.use_place365_pred_hier2 and args.use_coco_panoptic_info:
+    if args.use_place365_pred_hier2 and (args.use_coco_panoptic_info or args.use_panoptic_info_attention):
         print("using all data with hier2 and panoptic information")
         PATHS = {
             'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier2pred_panoptic.json'),

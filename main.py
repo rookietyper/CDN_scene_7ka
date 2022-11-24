@@ -172,6 +172,7 @@ def get_args_parser():
     parser.add_argument('--use_coco_panoptic_info', action='store_true')
     parser.add_argument('--use_coco_panoptic_num_info', action='store_true')
     parser.add_argument('--use_panoptic_info_beforeHOPD', action='store_true')
+    parser.add_argument('--use_panoptic_info_attention', action='store_true')
     parser.add_argument('--loss_scene_reweight', action='store_true')
     return parser
 

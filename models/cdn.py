@@ -53,6 +53,16 @@ class CDN(nn.Module):
         self.use_panoptic_info_beforeHOPD = args.use_panoptic_info_beforeHOPD
         if self.use_panoptic_info:
             self.panoptic_proj = nn.Linear(133, 256)
+        self.use_panoptic_info_attention = args.use_panoptic_info_attention
+        if self.use_panoptic_info_attention:
+            self.HOPD_panoptic_embedding = torch.load('./panoptic_stuff_VIT-B32.pth')
+            self.panoptic_proj = nn.Linear(512, 256)
+            HOPDquery_decoder_layer = HOPDquery_DecoderLayer(d_model, nhead, dim_feedforward,
+                                                dropout, activation, normalize_before)
+            HOPDquery_decoder_norm = nn.LayerNorm(d_model)
+            self.HOPD_panoptic_attention = HOPDquery_Decoder(HOPDquery_decoder_layer, 1, HOPDquery_decoder_norm,
+                                            return_intermediate=return_intermediate_dec)
+            
         
     def _reset_parameters(self):
         for p in self.parameters():
@@ -114,7 +124,7 @@ class CDN(nn.Module):
         tgt = torch.zeros_like(query_embed)
 
         memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
-        if self.use_panoptic_info:
+        if self.use_panoptic_info or self.use_panoptic_info_attention:
             if self.use_panoptic_num_info:
                 panoptic_info = background[2]
             else:
@@ -131,11 +141,20 @@ class CDN(nn.Module):
         if self.use_background and not self.use_hier_beforeHOPD:
             memory,mask,pos_embed =  self.process_encoded_feature(memory,mask,background,pos_embed,bs)
         if self.use_panoptic_info and not self.use_panoptic_info_beforeHOPD:
-            print("panoptic after HOPD")
+            # print("panoptic after HOPD")
             memory,mask,pos_embed =  self.process_encoded_panoptic_feature(memory,mask, panoptic_info, pos_embed, bs)
         
+        interaction_query_embed = hopd_out[-1].permute(1, 0, 2)
+        interaction_zeros = torch.zeros_like(interaction_query_embed)
+        
+        if self.use_panoptic_info_attention:
+            panoptic_features = self.panoptic_proj(self.HOPD_panoptic_embedding)
+            panoptic_features = panoptic_features*background # 这里后面可能还是得用掩码
+            interaction_query_embed = self.HOPD_panoptic_attention(interaction_zeros, panoptic_features, memory_key_padding_mask=mask,
+                                  pos=pos_embed, query_pos=interaction_query_embed)
 
-        interaction_query_embed = hopd_out[-1]
+        
+
         interaction_query_embed = interaction_query_embed.permute(1, 0, 2)
 
         interaction_tgt = torch.zeros_like(interaction_query_embed)
@@ -168,6 +187,96 @@ class TransformerEncoder(nn.Module):
             output = self.norm(output)
 
         return output
+
+
+class HOPDquery_Decoder(nn.Module):
+
+    def __init__(self, decoder_layer, num_layers, norm=None, return_intermediate=False):
+        super().__init__()
+        self.layers = _get_clones(decoder_layer, num_layers)
+        self.num_layers = num_layers
+        self.norm = norm
+        self.return_intermediate = return_intermediate
+
+    def forward(self, tgt, memory,
+                tgt_mask: Optional[Tensor] = None,
+                memory_mask: Optional[Tensor] = None,
+                tgt_key_padding_mask: Optional[Tensor] = None,
+                memory_key_padding_mask: Optional[Tensor] = None,
+                pos: Optional[Tensor] = None,
+                query_pos: Optional[Tensor] = None):
+        output = tgt
+
+        intermediate = []
+
+        for layer in self.layers:
+            output = layer(output, memory, tgt_mask=tgt_mask,
+                           memory_mask=memory_mask,
+                           tgt_key_padding_mask=tgt_key_padding_mask,
+                           memory_key_padding_mask=memory_key_padding_mask,
+                           pos=pos, query_pos=query_pos)
+            if self.return_intermediate:
+                intermediate.append(self.norm(output))
+
+        if self.norm is not None:
+            output = self.norm(output)
+            if self.return_intermediate:
+                intermediate.pop()
+                intermediate.append(output)
+
+        if self.return_intermediate:
+            return torch.stack(intermediate)
+
+        return output
+
+class HOPDquery_DecoderLayer(nn.Module):
+
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
+                 activation="relu", normalize_before=False):
+        super().__init__()
+        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.norm3 = nn.LayerNorm(d_model)
+        self.dropout2 = nn.Dropout(dropout)
+        self.dropout3 = nn.Dropout(dropout)
+
+        self.activation = _get_activation_fn(activation)
+        self.normalize_before = normalize_before
+
+    def with_pos_embed(self, tensor, pos: Optional[Tensor]):
+        return tensor if pos is None else tensor + pos
+
+    def forward_post(self, tgt, panoptic_info,
+                     memory_mask: Optional[Tensor] = None,
+                     memory_key_padding_mask: Optional[Tensor] = None,
+                     pos: Optional[Tensor] = None,
+                     query_pos: Optional[Tensor] = None):
+        tgt = self.norm1(tgt)
+        tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
+                                   key=self.with_pos_embed(panoptic_info, pos),
+                                   value=panoptic_info, attn_mask=memory_mask,
+                                   key_padding_mask=memory_key_padding_mask)[0]
+        tgt = tgt + self.dropout1(tgt2)
+        tgt = self.norm2(tgt)
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
+        tgt = tgt + self.dropout2(tgt2)
+        tgt = self.norm3(tgt)
+        return tgt
+
+    def forward(self, tgt, memory,
+                tgt_mask: Optional[Tensor] = None,
+                memory_mask: Optional[Tensor] = None,
+                tgt_key_padding_mask: Optional[Tensor] = None,
+                memory_key_padding_mask: Optional[Tensor] = None,
+                pos: Optional[Tensor] = None,
+                query_pos: Optional[Tensor] = None):
+        return self.forward_post(tgt, memory, tgt_mask, memory_mask,
+                                 tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos)
 
 
 class TransformerDecoder(nn.Module):
