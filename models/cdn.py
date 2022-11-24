@@ -4,6 +4,7 @@ from typing import Optional, List
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
+import numpy
 
 
 class CDN(nn.Module):
@@ -135,28 +136,40 @@ class CDN(nn.Module):
         if self.use_background and self.use_hier_beforeHOPD:
             #print(len((memory,mask,background,pos_embed)))
             memory,mask,pos_embed =  self.process_encoded_feature(memory,mask, background, pos_embed, bs)
+        
+
         hopd_out = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                           pos=pos_embed, query_pos=query_embed)
+        # print((tgt.shape,memory.shape,mask.shape,pos_embed.shape,query_embed.shape))
+        #(torch.Size([64, 1, 256]), torch.Size([589, 1, 256]), torch.Size([1, 589]), torch.Size([589, 1, 256]), torch.Size([64, 1, 256]))
+  
         hopd_out = hopd_out.transpose(1, 2)
+        
         if self.use_background and not self.use_hier_beforeHOPD:
             memory,mask,pos_embed =  self.process_encoded_feature(memory,mask,background,pos_embed,bs)
         if self.use_panoptic_info and not self.use_panoptic_info_beforeHOPD:
             # print("panoptic after HOPD")
             memory,mask,pos_embed =  self.process_encoded_panoptic_feature(memory,mask, panoptic_info, pos_embed, bs)
         
-        interaction_query_embed = hopd_out[-1].permute(1, 0, 2)
-        interaction_zeros = torch.zeros_like(interaction_query_embed)
+        
         
         if self.use_panoptic_info_attention:
-            panoptic_features = self.panoptic_proj(self.HOPD_panoptic_embedding)
-            panoptic_features = panoptic_features*background # 这里后面可能还是得用掩码
-            interaction_query_embed = self.HOPD_panoptic_attention(interaction_zeros, panoptic_features, memory_key_padding_mask=mask,
-                                  pos=pos_embed, query_pos=interaction_query_embed)
+            interaction_query_embed = hopd_out[-1].permute(1, 0, 2)
+            interaction_zeros = torch.zeros_like(interaction_query_embed)
+            panoptic_features = self.panoptic_proj(torch.tensor(self.HOPD_panoptic_embedding,dtype = torch.float32).cuda())
+            panoptic_features = panoptic_features.unsqueeze(1).repeat(1,bs,1)
+            # panoptic_features = panoptic_features*background # 这里后面可能还是得用掩码
+            
+            mask_panoptic = ~(panoptic_info==1) # bs,133
+            interaction_query_embed = self.HOPD_panoptic_attention(interaction_zeros, panoptic_features, memory_key_padding_mask=mask_panoptic,
+                                   query_pos=interaction_query_embed)
+            interaction_query_embed = interaction_query_embed.transpose(1, 2)[-1].permute(1, 0, 2)
+            # interaction_query_embed = self.HOPD_panoptic_attention(interaction_zeros, panoptic_features, memory_key_padding_mask=mask_panoptic,
+            #                        query_pos=interaction_query_embed)[-1].permute(1, 0, 2)
+        else:
+            interaction_query_embed = hopd_out[-1].permute(1, 0, 2)
 
         
-
-        interaction_query_embed = interaction_query_embed.permute(1, 0, 2)
-
         interaction_tgt = torch.zeros_like(interaction_query_embed)
         interaction_decoder_out = self.interaction_decoder(interaction_tgt, memory, memory_key_padding_mask=mask,
                                   pos=pos_embed, query_pos=interaction_query_embed)
@@ -242,8 +255,8 @@ class HOPDquery_DecoderLayer(nn.Module):
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.norm3 = nn.LayerNorm(d_model)
+        self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
-        self.dropout3 = nn.Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
@@ -252,7 +265,9 @@ class HOPDquery_DecoderLayer(nn.Module):
         return tensor if pos is None else tensor + pos
 
     def forward_post(self, tgt, panoptic_info,
+                     tgt_mask: Optional[Tensor] = None,
                      memory_mask: Optional[Tensor] = None,
+                     tgt_key_padding_mask: Optional[Tensor] = None,
                      memory_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None,
                      query_pos: Optional[Tensor] = None):

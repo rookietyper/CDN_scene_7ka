@@ -48,8 +48,9 @@ class HICODetection(torch.utils.data.Dataset):
         self.use_place365_pred_hier3 = args.use_place365_pred_hier3
         self.mask_verb_scene_coour = args.mask_verb_scene_coour
         self.use_coco_panoptic_info = args.use_coco_panoptic_info
+        self.use_panoptic_info_attention = args.use_panoptic_info_attention
         self.use_place365_pred_hier2reclass = args.use_place365_pred_hier2reclass
-        if self.use_coco_panoptic_info:
+        if self.use_coco_panoptic_info or self.use_panoptic_info_attention:
             self.use_num_aswell = args.use_coco_panoptic_num_info
 
     def __len__(self):
@@ -80,7 +81,7 @@ class HICODetection(torch.utils.data.Dataset):
             target['use_place365_pred_hier2d'] =  torch.tensor(img_anno['hier2_pred'])
         if self.use_place365_pred_hier2reclass :
             target['use_place365_pred_hier2_reclass'] =  torch.tensor(img_anno['use_place365_pred_hier2reclass'])
-        if self.use_coco_panoptic_info:
+        if self.use_coco_panoptic_info or self.use_panoptic_info_attention:
             target['panoptic_class_info'] = torch.tensor(img_anno['panoptic_info'][0])
             if self.use_num_aswell:
                 target['panoptic_class_num_info'] = torch.tensor(img_anno['panoptic_info'][1])
