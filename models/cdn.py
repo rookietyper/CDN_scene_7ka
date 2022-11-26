@@ -161,8 +161,8 @@ class CDN(nn.Module):
             # panoptic_features = panoptic_features*background # 这里后面可能还是得用掩码
             
             mask_panoptic = ~(panoptic_info==1) # bs,133
-            interaction_query_embed = self.HOPD_panoptic_attention(interaction_zeros, panoptic_features, memory_key_padding_mask=mask_panoptic,
-                                   query_pos=interaction_query_embed)
+            interaction_query_embed = self.HOPD_panoptic_attention(interaction_query_embed, panoptic_features, memory_key_padding_mask=mask_panoptic,
+                                   query_pos=interaction_zeros)  # 注意这块变了0值放在pos的位置上了
             interaction_query_embed = interaction_query_embed.transpose(1, 2)[-1].permute(1, 0, 2)
             # interaction_query_embed = self.HOPD_panoptic_attention(interaction_zeros, panoptic_features, memory_key_padding_mask=mask_panoptic,
             #                        query_pos=interaction_query_embed)[-1].permute(1, 0, 2)
@@ -271,7 +271,6 @@ class HOPDquery_DecoderLayer(nn.Module):
                      memory_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None,
                      query_pos: Optional[Tensor] = None):
-        tgt = self.norm1(tgt)
         tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
                                    key=self.with_pos_embed(panoptic_info, pos),
                                    value=panoptic_info, attn_mask=memory_mask,
