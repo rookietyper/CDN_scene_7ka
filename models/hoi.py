@@ -173,6 +173,7 @@ class SetCriterionHOI(nn.Module):
         self.use_place365_pred_hier2 = args.use_place365_pred_hier2
         if self.loss_scene_reweight:
             self.scene_inter_matrix = torch.load('./intersceneprior.pth')
+            self.scene_inter_matrix_neg = torch.load('./intersceneprior_neg.pth')
         
         Maxsize = args.queue_size
 
@@ -357,13 +358,17 @@ class SetCriterionHOI(nn.Module):
         loss = 0
 
         pos_loss = alpha * torch.log(pred) * torch.pow(1 - pred, 2) * pos_inds
-        if self.loss_scene_reweight:
-            scene_weight = background.mm(self.scene_inter_matrix).unsqueeze(1).repeat(1,64,1)+torch.ones(pos_inds.shape)
-            pos_loss=pos_loss*scene_weight.cuda()
+        
         if weights is not None:
             pos_loss = pos_loss * weights[:-1]
 
         neg_loss = (1 - alpha) * torch.log(1 - pred) * torch.pow(pred, 2) * neg_inds
+        if self.loss_scene_reweight:
+            scene_weight = background.mm(self.scene_inter_matrix).unsqueeze(1).repeat(1,64,1)+torch.ones(pos_inds.shape)
+            pos_loss=pos_loss*scene_weight.cuda()
+            scene_weight_neg = background.mm(self.scene_inter_matrix_neg).unsqueeze(1).repeat(1,64,1)+torch.ones(neg_inds.shape)
+            neg_loss=pos_loss*scene_weight_neg.cuda()
+
 
         num_pos  = pos_inds.float().sum()
         pos_loss = pos_loss.sum()
