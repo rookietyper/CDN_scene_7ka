@@ -367,7 +367,7 @@ class SetCriterionHOI(nn.Module):
             scene_weight = background.mm(self.scene_inter_matrix).unsqueeze(1).repeat(1,64,1)+torch.ones(pos_inds.shape)
             pos_loss=pos_loss*scene_weight.cuda()
             scene_weight_neg = background.mm(self.scene_inter_matrix_neg).unsqueeze(1).repeat(1,64,1)+torch.ones(neg_inds.shape)
-            neg_loss=pos_loss*scene_weight_neg.cuda()
+            neg_loss=neg_loss*scene_weight_neg.cuda()
 
 
         num_pos  = pos_inds.float().sum()
