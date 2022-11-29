@@ -19,7 +19,7 @@ import os
 import wandb
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 #os.environ["RANK"] = "2,3" 
 #os.environ["LOCAL_RANK"] = "2,3" 

@@ -65,6 +65,9 @@ class CDN(nn.Module):
                                             return_intermediate=return_intermediate_dec)
         self.use_CMA = args.use_CMA
         if self.use_CMA:
+            self.HOPD_panoptic_embedding = torch.load('./panoptic_stuff_VIT-B32.pth')
+            self.hier2_clip_embedding =  torch.load('./hier2_clip_textembedding.pt')
+            self.panoptic_proj = nn.Linear(512, 256)
             CMA_decoder_layer = HOPDquery_DecoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before)
             CMA_decoder_norm = nn.LayerNorm(d_model)
@@ -130,15 +133,22 @@ class CDN(nn.Module):
 
         tgt = torch.zeros_like(query_embed)
 
-        memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
-        if self.use_CMA:
-            panoptic_info = background[1]
-            background = background[0]
-            print(panoptic_info.shape)
-            print(background.shape)
-            print(memory.shape)
-            memory = self.CMA_attention(memory, panoptic_features, tgt_mask = mask, memory_key_padding_mask=mask_panoptic)  # 注意这块变了0值放在pos的位置上了
-            interaction_query_embed = interaction_query_embed.transpose(1, 2)[-1].permute(1, 0, 2)
+        memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)# (h*w)*bs*256
+        if self.use_CMA: #利用panoptic得到的信息和场景类别信息来增强编码后的特征
+            panoptic_info = background[1] # bs * 133
+            background = background[0] # bs *16
+            panoptic_features = self.panoptic_proj(torch.tensor(self.HOPD_panoptic_embedding,dtype = torch.float32).cuda())# 133 *256
+            panoptic_features = panoptic_features.unsqueeze(1).repeat(1,bs,1)  # 133*bs*256
+            hier2label_features = self.panoptic_proj(torch.tensor(self.hier2_clip_embedding,dtype = torch.float32).cuda()) # 16*256
+            hier2label_features = hier2label_features.unsqueeze(1).repeat(1,bs,1)# 16*bs*256
+            final_features = torch.cat((panoptic_features, hier2label_features),dim=0)
+            mask_panoptic = ~(panoptic_info==1)
+            mask_hier2 = ~(background>0.4)
+            mask_CMA=torch.cat((mask_panoptic,mask_hier2),dim=-1) # bs * 16+133
+            memory = self.CMA_attention(memory, final_features, tgt_mask = mask, memory_key_padding_mask=mask_CMA)  # 注意这块变了0值放在pos的位置上了
+            # torch.Size([1, 725, 2, 256])
+            memory = memory[-1]
+            # interaction_query_embed = interaction_query_embed.transpose(1, 2)[-1].permute(1, 0, 2)
 
 
         if (self.use_panoptic_info or self.use_panoptic_info_attention) and not self.use_CMA:
