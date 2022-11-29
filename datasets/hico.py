@@ -231,8 +231,8 @@ def build(image_set, args):
     if args.use_place365_pred_hier2 and (args.use_coco_panoptic_info or args.use_panoptic_info_attention):
         print("using all data with hier2 and panoptic information")
         PATHS = {
-            'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier2pred_panoptic.json'),
-            'val': (root / 'images' / 'test2015', root / 'annotations' / 'test_hico_hier2pred_panoptic.json')
+            'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico_hier2pred_panoptic_new.json'),
+            'val': (root / 'images' / 'test2015', root / 'annotations' / 'test_hico_hier2pred_panoptic_new.json')
         }
     
     elif args.use_place365_pred_hier2 or args.mask_verb_scene_coour:
