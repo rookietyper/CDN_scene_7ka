@@ -63,7 +63,13 @@ class CDN(nn.Module):
             HOPDquery_decoder_norm = nn.LayerNorm(d_model)
             self.HOPD_panoptic_attention = HOPDquery_Decoder(HOPDquery_decoder_layer, 1, HOPDquery_decoder_norm,
                                             return_intermediate=return_intermediate_dec)
-            
+        self.use_CMA = args.use_CMA
+        if self.use_CMA:
+            CMA_decoder_layer = HOPDquery_DecoderLayer(d_model, nhead, dim_feedforward,
+                                                dropout, activation, normalize_before)
+            CMA_decoder_norm = nn.LayerNorm(d_model)
+            self.CMA_attention = HOPDquery_Decoder(CMA_decoder_layer, 1, CMA_decoder_norm,
+                                            return_intermediate=return_intermediate_dec)
         
     def _reset_parameters(self):
         for p in self.parameters():
@@ -125,7 +131,17 @@ class CDN(nn.Module):
         tgt = torch.zeros_like(query_embed)
 
         memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
-        if self.use_panoptic_info or self.use_panoptic_info_attention:
+        if self.use_CMA:
+            panoptic_info = background[1]
+            background = background[0]
+            print(panoptic_info.shape)
+            print(background.shape)
+            print(memory.shape)
+            memory = self.CMA_attention(memory, panoptic_features, tgt_mask = mask, memory_key_padding_mask=mask_panoptic)  # 注意这块变了0值放在pos的位置上了
+            interaction_query_embed = interaction_query_embed.transpose(1, 2)[-1].permute(1, 0, 2)
+
+
+        if (self.use_panoptic_info or self.use_panoptic_info_attention) and not self.use_CMA:
             if self.use_panoptic_num_info:
                 panoptic_info = background[2]
             else:
@@ -137,7 +153,7 @@ class CDN(nn.Module):
             #print(len((memory,mask,background,pos_embed)))
             memory,mask,pos_embed =  self.process_encoded_feature(memory,mask, background, pos_embed, bs)
         
-
+        
         hopd_out = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                           pos=pos_embed, query_pos=query_embed)
         # print((tgt.shape,memory.shape,mask.shape,pos_embed.shape,query_embed.shape))

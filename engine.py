@@ -47,7 +47,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                 background[i] = targets[i]['use_place365_pred_hier3d']
         else:
             background = None
-        if args.use_coco_panoptic_info or args.use_panoptic_info_attention:
+        if args.use_coco_panoptic_info or args.use_panoptic_info_attention or args.use_CMA:
             panoptic_info =  torch.zeros((len(targets),133)).to(device)
             for i in range(len(targets)):
                 panoptic_info[i] = targets[i]['panoptic_class_info']
@@ -136,7 +136,7 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
                 background[i] = targets[i]['use_place365_pred_hier2_reclass']
         else:
             background = None
-        if args.use_coco_panoptic_info or args.use_panoptic_info_attention:
+        if args.use_coco_panoptic_info or args.use_panoptic_info_attention or args.use_CMA:
             panoptic_info =  torch.zeros((len(targets),133)).to(device)
             for i in range(len(targets)):
               panoptic_info[i] = targets[i]['panoptic_class_info']
